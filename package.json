@@ -1,0 +1,56 @@
+{
+  "name": "homebridge-eufy-clean",
+  "displayName": "Homebridge Eufy Clean",
+  "version": "0.3.3",
+  "description": "Homebridge platform plugin for Eufy Clean RoboVac devices with native Matter RoboticVacuumCleaner support on Homebridge 2.x and HAP switch+battery fallback.",
+  "type": "module",
+  "main": "src/index.js",
+  "author": {
+    "name": "gstrosnider",
+    "url": "https://github.com/gstrosnider"
+  },
+  "homepage": "https://github.com/gstrosnider/homebridge-eufy-clean#readme",
+  "license": "MIT",
+  "keywords": [
+    "homebridge-plugin",
+    "supports-hap",
+    "supports-matter",
+    "eufy",
+    "eufy-clean",
+    "robovac",
+    "vacuum",
+    "tuya",
+    "mqtt"
+  ],
+  "engines": {
+    "node": "^22.10.0 || ^24.0.0",
+    "homebridge": "^1.8.0 || ^2.0.0"
+  },
+  "scripts": {
+    "check": "node --check src/index.js && node --check src/platform.js && node --check src/vacuum-accessory.js && node --check src/matter-vacuum-accessory.js && node --check src/device-plan.js && node --check src/device-profile.js && node --check src/eufy-account.js",
+    "test": "node --test test/*.test.js",
+    "prepublishOnly": "npm run check && npm test"
+  },
+  "dependencies": {
+    "eufy-clean": "github:martijnpoppen/eufy-clean#8872307101a7032aa9f359781a3783fc50b0d380"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gstrosnider/homebridge-eufy-clean.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gstrosnider/homebridge-eufy-clean/issues"
+  },
+  "maintainers": [
+    {
+      "name": "gstrosnider",
+      "url": "https://github.com/gstrosnider"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "gstrosnider",
+      "url": "https://github.com/gstrosnider"
+    }
+  ]
+}
