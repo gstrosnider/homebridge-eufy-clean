@@ -1,0 +1,117 @@
+{
+  "pluginAlias": "EufyCleanNext",
+  "pluginType": "platform",
+  "singular": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "Eufy Clean"
+      },
+      "username": {
+        "title": "Eufy account email",
+        "type": "string",
+        "description": "Optional when every configured vacuum uses local mode. Required for account Cloud/MQTT discovery."
+      },
+      "password": {
+        "title": "Eufy account password",
+        "type": "string",
+        "description": "Optional when every configured vacuum uses local mode. Required for account Cloud/MQTT discovery."
+      },
+      "enableMatter": {
+        "title": "Enable native Matter vacuum",
+        "type": "boolean",
+        "default": true,
+        "description": "When Homebridge 2.x Matter is enabled for this bridge, expose each RoboVac as a native Matter Robotic Vacuum Cleaner. Automatically falls back to the HomeKit switch + battery accessory when Matter is unavailable or registration fails."
+      },
+      "pollInterval": {
+        "title": "Status refresh interval (seconds)",
+        "type": "integer",
+        "default": 30,
+        "minimum": 10,
+        "maximum": 300,
+        "description": "Refresh interval for HomeKit or Matter vacuum state and battery information."
+      },
+      "debug": {
+        "title": "Debug logging",
+        "type": "boolean",
+        "default": false
+      },
+      "devices": {
+        "title": "Device overrides / local devices",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "deviceId": {
+              "title": "Device ID",
+              "type": "string",
+              "required": true
+            },
+            "name": {
+              "title": "HomeKit name override",
+              "type": "string"
+            },
+            "deviceModel": {
+              "title": "Eufy model code",
+              "type": "string",
+              "description": "Optional, for example T2272 or T2276. Recommended for manually configured local devices."
+            },
+            "deviceModelName": {
+              "title": "Model display name",
+              "type": "string"
+            },
+            "connection": {
+              "title": "Connection mode",
+              "type": "string",
+              "default": "auto",
+              "oneOf": [
+                {
+                  "title": "Auto",
+                  "enum": [
+                    "auto"
+                  ]
+                },
+                {
+                  "title": "Eufy account (Cloud/MQTT)",
+                  "enum": [
+                    "account"
+                  ]
+                },
+                {
+                  "title": "Local Tuya",
+                  "enum": [
+                    "local"
+                  ]
+                }
+              ]
+            },
+            "hide": {
+              "title": "Hide this device",
+              "type": "boolean",
+              "default": false
+            },
+            "ip": {
+              "title": "Legacy local IP",
+              "type": "string",
+              "description": "Required with localKey for local mode."
+            },
+            "localKey": {
+              "title": "Legacy local key",
+              "type": "string",
+              "description": "Required with IP for local mode."
+            },
+            "pollInterval": {
+              "title": "Per-device refresh interval (seconds)",
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 300
+            }
+          }
+        }
+      }
+    }
+  }
+}
