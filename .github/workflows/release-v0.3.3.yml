@@ -1,0 +1,90 @@
+name: Release v0.3.3
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish v0.3.3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "$VERSION" != "0.3.3" ]; then
+            echo "package.json is version $VERSION; this workflow only publishes v0.3.3."
+            exit 1
+          fi
+
+      - name: Build installable package
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm pack --ignore-scripts
+          test -f homebridge-eufy-clean-0.3.3.tgz
+          sha256sum homebridge-eufy-clean-0.3.3.tgz | tee SHA256SUMS.txt
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          cat > RELEASE_NOTES.md <<'EOF'
+          # Homebridge Eufy Clean v0.3.3
+
+          Initial public GitHub release of **homebridge-eufy-clean**, created and maintained by **@gstrosnider**.
+
+          ## Highlights
+
+          - Native Matter `RoboticVacuumCleaner` support on compatible Homebridge 2.x installations.
+          - Automatic HAP/HomeKit fallback when Matter is disabled or unavailable.
+          - Start cleaning from HomeKit/Matter.
+          - Turning the vacuum off/idle stops or pauses cleaning and returns it to the dock.
+          - Read-only battery percentage, charging state, and low-battery status.
+          - Automatic Eufy account discovery with Cloud, MQTT/AIOT, and legacy Tuya handling.
+          - Optional local Tuya control for compatible older RoboVacs using device ID, IP address, and local key.
+          - Runtime discovery is designed to support both legacy and newer Eufy RoboVac generations without rejecting unknown model identifiers solely because they are absent from a static model list.
+
+          ## Matter scope
+
+          Matter currently exposes start, pause/resume, return home, operational state, battery state, and a conservative vacuum cleaning mode. Maps, room selection, scenes, suction presets, mop settings, consumables, and advanced dock controls are not included in this release.
+
+          ## Installation
+
+          Download `homebridge-eufy-clean-0.3.3.tgz` from the Assets section and install it with npm on the Homebridge host.
+
+          The release also includes `SHA256SUMS.txt` for package verification. GitHub automatically provides source `.zip` and `.tar.gz` archives for this tag.
+
+          ## Compatibility note
+
+          Eufy does not provide a stable public API for every RoboVac generation. Broad compatibility is implemented through the upstream `eufy-clean` SDK and multiple transport paths, but individual models or future Eufy API changes may require additional work.
+          EOF
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v0.3.3"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists; leaving the existing release unchanged."
+            exit 0
+          fi
+
+          gh release create "$TAG" \
+            homebridge-eufy-clean-0.3.3.tgz \
+            SHA256SUMS.txt \
+            --target "$GITHUB_SHA" \
+            --title "Homebridge Eufy Clean v0.3.3" \
+            --notes-file RELEASE_NOTES.md \
+            --latest
