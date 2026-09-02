@@ -2,10 +2,6 @@
 
 Version 0.3.3 provides native Homebridge Matter support with HAP fallback and canonical project attribution to **@gstrosnider**.
 
-## Creator
-
-Created and maintained by **[@gstrosnider](https://github.com/gstrosnider)**.
-
 Project repository: **https://github.com/gstrosnider/homebridge-eufy-clean**
 
 This plugin builds on the community `eufy-clean` SDK and related Eufy integration research; those upstream projects retain their own authorship and licenses.
