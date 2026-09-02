@@ -8,7 +8,7 @@ const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url
 const schema = JSON.parse(await readFile(new URL('../config.schema.json', import.meta.url), 'utf8'));
 
 test('package declares native Matter transport support', () => {
-  assert.equal(pkg.version, '0.3.3');
+  assert.equal(pkg.version, '0.4.0');
   assert.equal(pkg.keywords.includes('supports-hap'), true);
   assert.equal(pkg.keywords.includes('supports-matter'), true);
   assert.equal(pkg.author?.name, 'gstrosnider');
@@ -27,6 +27,14 @@ test('native robotic vacuum device type and core RVC clusters are present', () =
   assert.equal(matterSource.includes('rvcCleanMode'), true);
   assert.equal(matterSource.includes('rvcOperationalState'), true);
   assert.equal(matterSource.includes('powerSource'), true);
+  assert.equal(matterSource.includes('serviceArea'), true);
+});
+
+test('configuration supports manual per-device map and room fallback', () => {
+  const device = schema.schema.properties.devices.items.properties;
+  assert.equal(device.mapId.type, 'integer');
+  assert.equal(device.rooms.type, 'array');
+  assert.deepEqual(device.rooms.items.required, ['id', 'name']);
 });
 
 test('Matter controls include start pause resume and return home', () => {
@@ -121,5 +129,35 @@ test('Matter Idle command stops then docks', async () => {
   const result = await accessory.handleRunMode({ newMode: 0 });
   assert.deepEqual(calls, ['stop', 'goHome']);
   assert.equal(result.status, 0);
+  await accessory.shutdown();
+});
+
+test('Matter area selection is stored and used by the next Start command', async () => {
+  let selectedCommand;
+  class FutureController {
+    constructor() { this.novelApi = false; }
+    async connect() {}
+    async updateDevice() {}
+    async getWorkStatus() { return 'docked'; }
+    async getPlayPause() { return false; }
+    async getBatteryLevel() { return 100; }
+    async cleanRooms(request) { selectedCommand = request; }
+    async disconnect() {}
+  }
+  const controller = new FutureController();
+  const { platform } = mockMatterPlatform(controller);
+  const accessory = new EufyMatterVacuumAccessory(
+    platform,
+    controller,
+    { deviceId: 't2276', deviceName: 'Dobby', deviceModel: 'T2276' },
+    { mapId: 12, rooms: [{ id: 1, name: 'Kitchen' }, { id: 3, name: 'Bedroom' }] },
+    'uuid:dobby',
+  );
+  await accessory.initialize();
+  accessory.refreshSoon = async () => {};
+  await accessory.handleSelectAreas({ newAreas: [3, 1] });
+  assert.equal(selectedCommand, undefined);
+  await accessory.handleRunMode({ newMode: 1 });
+  assert.deepEqual(selectedCommand, { roomIds: [3, 1], mapId: 12 });
   await accessory.shutdown();
 });

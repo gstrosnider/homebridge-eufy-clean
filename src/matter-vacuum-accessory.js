@@ -1,4 +1,5 @@
 import { controllerTransport, isNovelDevice } from './device-profile.js';
+import { cleanSelectedRooms, discoverServiceAreas } from './service-area.js';
 
 const RVC_STATE = Object.freeze({
   STOPPED: 0,
@@ -42,6 +43,8 @@ export class EufyMatterVacuumAccessory {
     this.refreshing = false;
     this.accessoryData = null;
     this.lastSnapshot = null;
+    this.serviceAreas = { rooms: [], maps: [], source: 'none' };
+    this.selectedAreas = [];
   }
 
   async initialize() {
@@ -51,6 +54,13 @@ export class EufyMatterVacuumAccessory {
 
     await this.device.connect();
     this.lastSnapshot = await this.readSnapshot(true);
+    this.serviceAreas = await discoverServiceAreas(
+      this.device,
+      this.discoveryRecord,
+      this.override.rooms,
+      this.override.mapId,
+    );
+    this.logServiceAreas();
     this.accessoryData = this.buildAccessory(this.lastSnapshot);
 
     const apiGeneration = isNovelDevice(this.device) ? 'novel' : 'legacy';
@@ -151,6 +161,17 @@ export class EufyMatterVacuumAccessory {
           batChargeLevel: snapshot.batteryLevel == null ? 0 : this.batteryChargeLevel(snapshot.batteryLevel),
           batReplaceability: 1,
         },
+        ...(this.serviceAreas.rooms.length ? {
+          serviceArea: {
+            ...(this.serviceAreas.maps.length ? { supportedMaps: this.serviceAreas.maps } : {}),
+            supportedAreas: this.serviceAreas.rooms.map((room) => ({
+              areaId: room.id,
+              mapId: room.mapId,
+              areaInfo: { locationInfo: { locationName: room.name } },
+            })),
+            selectedAreas: [],
+          },
+        } : {}),
       },
       handlers: {
         rvcRunMode: {
@@ -161,8 +182,46 @@ export class EufyMatterVacuumAccessory {
           resume: async () => await this.handleResume(),
           goHome: async () => await this.handleGoHome(),
         },
+        ...(this.serviceAreas.rooms.length ? {
+          serviceArea: {
+            selectAreas: async (request) => await this.handleSelectAreas(request),
+          },
+        } : {}),
       },
     };
+  }
+
+  logServiceAreas() {
+    const model = String(this.discoveryRecord.deviceModel || this.override.deviceModel || 'unknown');
+    if (!this.serviceAreas.rooms.length) {
+      this.log.info(`${this.name}: no room metadata exposed by ${this.transport} transport for model ${model}; configure devices[].rooms for Matter room selection.`);
+      return;
+    }
+    this.log.info(`${this.name}: loaded ${this.serviceAreas.rooms.length} Matter service area(s) from ${this.serviceAreas.source} room metadata.`);
+    if (this.config.debug) {
+      for (const map of this.serviceAreas.maps) this.log.debug(`${this.name}: discovered map ${map.mapId}: ${map.name}`);
+      for (const room of this.serviceAreas.rooms) this.log.debug(`${this.name}: room ${room.id}: ${room.name} (map ${String(room.mapId ?? 'none')})`);
+    }
+  }
+
+  async handleSelectAreas(request) {
+    const requested = Array.isArray(request?.newAreas) ? request.newAreas.map(Number) : [];
+    const supported = new Map(this.serviceAreas.rooms.map((room) => [room.id, room]));
+    const selected = [...new Set(requested)].filter((id) => supported.has(id));
+    if (selected.length !== requested.length) {
+      this.log.warn(`${this.name}: Matter selected one or more unknown room IDs; ignoring unknown areas.`);
+    }
+    this.selectedAreas = selected;
+
+    if (!selected.length) {
+      this.log.info(`${this.name}: Matter cleared room selection; the next start command will clean everywhere.`);
+      return { status: 0 };
+    }
+
+    const mapIds = [...new Set(selected.map((id) => supported.get(id)?.mapId).filter((id) => id != null))];
+    if (mapIds.length > 1) throw new Error('Selected rooms must belong to the same map');
+    this.log.info(`${this.name}: Matter selected rooms ${selected.join(', ')}${mapIds.length ? ` on map ${mapIds[0]}` : ''}; waiting for Start.`);
+    return { status: 0 };
   }
 
   accessorySource() {
@@ -212,10 +271,16 @@ export class EufyMatterVacuumAccessory {
   }
 
   async startAuto(refresh = true) {
-    this.log.info(`${this.name}: Matter start cleaning.`);
-    if (typeof this.device.autoClean === 'function') {
+    if (this.selectedAreas.length) {
+      const supported = new Map(this.serviceAreas.rooms.map((room) => [room.id, room]));
+      const mapIds = [...new Set(this.selectedAreas.map((id) => supported.get(id)?.mapId).filter((id) => id != null))];
+      this.log.info(`${this.name}: Matter start selected rooms ${this.selectedAreas.join(', ')}${mapIds.length ? ` on map ${mapIds[0]}` : ''}.`);
+      await cleanSelectedRooms(this.device, this.selectedAreas, mapIds[0] ?? this.override.mapId ?? null);
+    } else if (typeof this.device.autoClean === 'function') {
+      this.log.info(`${this.name}: Matter start whole-home cleaning.`);
       await this.device.autoClean();
     } else {
+      this.log.info(`${this.name}: Matter start whole-home cleaning.`);
       await this.callDevice('play');
     }
     if (refresh) {

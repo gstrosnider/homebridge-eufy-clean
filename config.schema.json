@@ -108,6 +108,39 @@
               "type": "integer",
               "minimum": 10,
               "maximum": 300
+            },
+            "mapId": {
+              "title": "Default Eufy map ID",
+              "type": "integer",
+              "minimum": 0,
+              "description": "Optional map ID used for manual Matter room mappings. Find it in debug logs when the transport exposes map metadata."
+            },
+            "rooms": {
+              "title": "Matter room mappings",
+              "type": "array",
+              "description": "Manual fallback for transports that do not expose Eufy room names. Room IDs must match the IDs in the Eufy map and remain stable until the map is recreated.",
+              "items": {
+                "type": "object",
+                "required": ["id", "name"],
+                "properties": {
+                  "id": {
+                    "title": "Eufy room ID",
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "name": {
+                    "title": "Room name",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "mapId": {
+                    "title": "Map ID override",
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Optional per-room map ID; otherwise the device-level mapId is used."
+                  }
+                }
+              }
             }
           }
         }

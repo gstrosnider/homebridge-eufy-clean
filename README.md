@@ -1,6 +1,6 @@
 # Homebridge Eufy Clean
 
-Version 0.3.3 provides native Homebridge Matter support with HAP fallback and canonical project attribution to **@gstrosnider**.
+Version 0.4.0 adds selectable Matter service areas with automatic decoded room discovery and a manual room-mapping fallback.
 
 Project repository: **https://github.com/gstrosnider/homebridge-eufy-clean**
 
@@ -28,8 +28,19 @@ The Matter accessory exposes:
 - Running / Paused / Seeking Charger / Charging / Docked / Error operational states
 - Battery percentage and low-battery level through the Matter Power Source cluster
 - One conservative clean mode: Vacuum
+- Selectable rooms through the Matter Service Area cluster when room metadata is available or manually configured
 
-Room selection, scenes, maps, suction presets, mop settings, consumables, and dock-station controls are intentionally not included in 0.3.0.
+Scenes, suction presets, mop settings, consumables, and dock-station controls are not included.
+
+### Room selection and the X8 Pro SES (T2276)
+
+The pinned `eufy-clean` SDK recognizes T2276 and includes the modern selected-room command. Automatic room names, however, depend on the connection transport:
+
+- Decoded room/map metadata exposed by MQTT/P2P or a future SDK controller is discovered automatically.
+- Tuya Cloud/local connections commonly do not expose the encrypted P2P room list. Configure `rooms` manually in that case.
+- Debug mode logs every discovered map and room, or explicitly reports that the active transport exposed none.
+
+Select one or more areas in a Matter controller, then press Start to clean those rooms. Clearing the selection resets Start to whole-home cleaning. Selected-room commands require the modern Eufy API; on a legacy transport the plugin reports that targeted cleaning is unavailable instead of silently starting the wrong cleaning mode.
 
 ### HAP/HomeKit fallback
 
@@ -52,6 +63,33 @@ If Matter is disabled, unavailable, or registration fails, the plugin falls back
 }
 ```
 
+Manual per-device room fallback:
+
+```json
+{
+  "platform": "EufyCleanNext",
+  "username": "you@example.com",
+  "password": "your-eufy-password",
+  "enableMatter": true,
+  "debug": true,
+  "devices": [
+    {
+      "deviceId": "YOUR_T2276_DEVICE_ID",
+      "name": "Dobby",
+      "deviceModel": "T2276",
+      "mapId": 12,
+      "rooms": [
+        { "id": 1, "name": "Kitchen" },
+        { "id": 2, "name": "Living Room" },
+        { "id": 4, "name": "Hallway" }
+      ]
+    }
+  ]
+}
+```
+
+`mapId` is optional if the vacuum accepts its active map by default. Room IDs come from Eufy map metadata when available. If the transport cannot reveal them, determine them carefully with test cleans; recreating the Eufy map can change the IDs.
+
 Older/local vacuums can continue to use per-device `deviceId`, `ip`, `localKey`, and `connection: "local"` configuration exactly as in 0.2.x.
 
 ## Enabling Matter in Homebridge
@@ -70,7 +108,7 @@ If Matter is not enabled, the plugin logs that it is falling back to HAP.
 
 ## Switching protocols
 
-0.3.3 avoids publishing the same physical vacuum through HAP and Matter at the same time:
+0.4.0 avoids publishing the same physical vacuum through HAP and Matter at the same time:
 
 - Successful Matter registration removes the corresponding cached HAP accessory.
 - HAP fallback removes cached Matter accessories so Homebridge does not restore a stale duplicate.

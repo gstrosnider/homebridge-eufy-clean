@@ -1,4 +1,4 @@
-name: Release v0.3.3
+name: Release v0.4.0
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   release:
-    name: Publish v0.3.3
+    name: Publish v0.4.0
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -22,8 +22,8 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version")"
-          if [ "$VERSION" != "0.3.3" ]; then
-            echo "package.json is version $VERSION; this workflow only publishes v0.3.3."
+          if [ "$VERSION" != "0.4.0" ]; then
+            echo "package.json is version $VERSION; this workflow only publishes v0.4.0."
             exit 1
           fi
 
@@ -32,20 +32,25 @@ jobs:
         run: |
           set -euo pipefail
           npm pack --ignore-scripts
-          test -f homebridge-eufy-clean-0.3.3.tgz
-          sha256sum homebridge-eufy-clean-0.3.3.tgz | tee SHA256SUMS.txt
+          test -f homebridge-eufy-clean-0.4.0.tgz
+          git archive --format=tar.gz --prefix=homebridge-eufy-clean-0.4.0/ -o homebridge-eufy-clean-0.4.0-source.tar.gz HEAD
+          sha256sum homebridge-eufy-clean-0.4.0.tgz homebridge-eufy-clean-0.4.0-source.tar.gz | tee SHA256SUMS.txt
 
       - name: Write release notes
         shell: bash
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          # Homebridge Eufy Clean v0.3.3
+          # Homebridge Eufy Clean v0.4.0
 
-          Initial public GitHub release of **homebridge-eufy-clean**, created and maintained by **@gstrosnider**.
+          Matter room-selection release of **homebridge-eufy-clean**, created and maintained by **@gstrosnider**.
 
           ## Highlights
 
           - Native Matter `RoboticVacuumCleaner` support on compatible Homebridge 2.x installations.
+          - Selectable rooms through the Matter Service Area cluster.
+          - Automatic decoded Eufy room/map discovery where the active transport exposes it.
+          - Manual per-device `rooms` and `mapId` fallback, particularly useful for Tuya Cloud/local connections.
+          - Selected-room protobuf control for newer Eufy API devices including the X8 Pro SES / T2276 when connected through the compatible API generation.
           - Automatic HAP/HomeKit fallback when Matter is disabled or unavailable.
           - Start cleaning from HomeKit/Matter.
           - Turning the vacuum off/idle stops or pauses cleaning and returns it to the dock.
@@ -56,11 +61,11 @@ jobs:
 
           ## Matter scope
 
-          Matter currently exposes start, pause/resume, return home, operational state, battery state, and a conservative vacuum cleaning mode. Maps, room selection, scenes, suction presets, mop settings, consumables, and advanced dock controls are not included in this release.
+          Matter exposes start, pause/resume, return home, operational state, battery state, a conservative vacuum cleaning mode, and room selection when room metadata is available. Scenes, suction presets, mop settings, consumables, and advanced dock controls are not included.
 
           ## Installation
 
-          Download `homebridge-eufy-clean-0.3.3.tgz` from the Assets section and install it with npm on the Homebridge host.
+          Download `homebridge-eufy-clean-0.4.0.tgz` from the Assets section and install it with npm on the Homebridge host. A matching source archive is also attached.
 
           The release also includes `SHA256SUMS.txt` for package verification. GitHub automatically provides source `.zip` and `.tar.gz` archives for this tag.
 
@@ -75,16 +80,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="v0.3.3"
+          TAG="v0.4.0"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "$TAG already exists; leaving the existing release unchanged."
             exit 0
           fi
 
           gh release create "$TAG" \
-            homebridge-eufy-clean-0.3.3.tgz \
+            homebridge-eufy-clean-0.4.0.tgz \
+            homebridge-eufy-clean-0.4.0-source.tar.gz \
             SHA256SUMS.txt \
             --target "$GITHUB_SHA" \
-            --title "Homebridge Eufy Clean v0.3.3" \
+            --title "Homebridge Eufy Clean v0.4.0" \
             --notes-file RELEASE_NOTES.md \
             --latest

@@ -1,7 +1,7 @@
 {
   "name": "homebridge-eufy-clean",
   "displayName": "Homebridge Eufy Clean",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Homebridge platform plugin for Eufy Clean RoboVac devices with native Matter RoboticVacuumCleaner support on Homebridge 2.x and HAP switch+battery fallback.",
   "type": "module",
   "main": "src/index.js",
@@ -27,7 +27,7 @@
     "homebridge": "^1.8.0 || ^2.0.0"
   },
   "scripts": {
-    "check": "node --check src/index.js && node --check src/platform.js && node --check src/vacuum-accessory.js && node --check src/matter-vacuum-accessory.js && node --check src/device-plan.js && node --check src/device-profile.js && node --check src/eufy-account.js",
+    "check": "node --check src/index.js && node --check src/platform.js && node --check src/vacuum-accessory.js && node --check src/matter-vacuum-accessory.js && node --check src/service-area.js && node --check src/device-plan.js && node --check src/device-profile.js && node --check src/eufy-account.js",
     "test": "node --test test/*.test.js",
     "prepublishOnly": "npm run check && npm test"
   },

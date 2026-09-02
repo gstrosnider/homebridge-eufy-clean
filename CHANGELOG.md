@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+- Added the Matter Service Area cluster for named, selectable room cleaning.
+- Added automatic discovery of decoded room/map metadata exposed by Eufy controllers and discovery records.
+- Added per-device `mapId` and `rooms` configuration as a fallback when Tuya Cloud/local transport does not expose the encrypted room list.
+- Added modern Eufy protobuf commands containing the selected room IDs, order, cleaning count, and optional map ID.
+- Added debug logging for discovered maps and rooms, with an explicit no-room-metadata diagnostic for T2276 and other models.
+- Refused targeted-room requests on legacy transports that cannot carry room IDs, preventing an unintended unconstrained clean.
+- Preserved Matter start, idle/return-home, pause, resume, operational state, battery reporting, HAP fallback, and the `EufyCleanNext` platform identifier.
+
 ## 0.3.3
 
 - Added explicit npm `maintainers` metadata for `gstrosnider` in addition to the package author.
