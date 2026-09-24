@@ -4,6 +4,34 @@ import { EufyVacuumAccessory } from './vacuum-accessory.js';
 import { dedupeDiscoveredDevices, initializeEufyAccount } from './eufy-account.js';
 import { PLUGIN_NAME, PLATFORM_NAME } from './settings.js';
 
+const DEFAULT_REAUTH_INTERVAL_MINUTES = 12 * 60;
+const MIN_REAUTH_INTERVAL_MINUTES = 60;
+const MAX_REAUTH_INTERVAL_MINUTES = 7 * 24 * 60;
+const REAUTH_FAILURE_COOLDOWN_MS = 5 * 60 * 1000;
+
+export function isAuthenticationFailure(error) {
+  const code = String(error?.code ?? error?.response?.status ?? error?.status ?? '').toLowerCase();
+  const message = String(error?.message ?? error ?? '').toLowerCase();
+  return [code, message].some((value) => [
+    '401',
+    '403',
+    'auth',
+    'credential',
+    'expired',
+    'forbidden',
+    'invalid session',
+    'invalid sid',
+    'invalid token',
+    'login required',
+    'must call login',
+    'not logged',
+    'session invalid',
+    'token invalid',
+    'unauthorized',
+    'user_session_invalid',
+  ].some((part) => value.includes(part)));
+}
+
 export class EufyCleanPlatform {
   constructor(log, config, api) {
     this.log = log;
@@ -15,12 +43,22 @@ export class EufyCleanPlatform {
     this.matterHandlers = new Map();
     this.eufy = null;
     this.accountDiscoverySucceeded = false;
+    this.discoveryPromise = null;
+    this.reauthTimer = null;
+    this.lastReauthAttempt = 0;
+    this.reauthHookTargets = new WeakSet();
+    this.shuttingDown = false;
 
     this.api.on('didFinishLaunching', () => {
-      void this.discoverDevices();
+      void this.discoverDevices('startup').finally(() => this.scheduleAccountRefresh());
     });
 
     this.api.on('shutdown', () => {
+      this.shuttingDown = true;
+      if (this.reauthTimer) {
+        clearInterval(this.reauthTimer);
+        this.reauthTimer = null;
+      }
       for (const handler of this.handlers.values()) {
         void handler.shutdown?.();
       }
@@ -38,7 +76,17 @@ export class EufyCleanPlatform {
     this.cachedMatterAccessories.set(accessory.UUID, accessory);
   }
 
-  async discoverDevices() {
+  async discoverDevices(reason = 'manual refresh') {
+    if (this.discoveryPromise) return await this.discoveryPromise;
+    this.discoveryPromise = this.runDiscovery(reason);
+    try {
+      return await this.discoveryPromise;
+    } finally {
+      this.discoveryPromise = null;
+    }
+  }
+
+  async runDiscovery(reason) {
     const hasUsername = Boolean(this.config.username);
     const hasPassword = Boolean(this.config.password);
     const accountConfigured = hasUsername && hasPassword;
@@ -70,12 +118,16 @@ export class EufyCleanPlatform {
             },
           );
           this.eufy = account.eufy;
+          this.installAccountFailureHooks(this.eufy?.eufyCleanApi);
           discovered = dedupeDiscoveredDevices(account.discovered);
           if (!Array.isArray(discovered)) {
             throw new Error('eufy-clean returned an invalid device list');
           }
           this.accountDiscoverySucceeded = account.authenticated;
           this.log.info(`Discovered ${discovered.length} usable Eufy Clean device(s) from the account${account.mqttAvailable ? ' (MQTT available)' : ' (Tuya Cloud/local mode)'}.`);
+          if (reason !== 'startup') {
+            this.log.info(`Eufy account session renewed automatically (${reason}).`);
+          }
         } catch (error) {
           this.accountDiscoverySucceeded = false;
           this.log.error(`Eufy account discovery/login failed: ${this.errorMessage(error)}`);
@@ -135,6 +187,85 @@ export class EufyCleanPlatform {
       }
     } catch (error) {
       this.log.error(`Unable to load or initialize eufy-clean: ${this.errorMessage(error)}`);
+    }
+  }
+
+  accountRefreshMinutes() {
+    const configured = Number(this.config.reauthInterval ?? DEFAULT_REAUTH_INTERVAL_MINUTES);
+    if (configured === 0) return 0;
+    if (!Number.isFinite(configured)) return DEFAULT_REAUTH_INTERVAL_MINUTES;
+    return Math.max(MIN_REAUTH_INTERVAL_MINUTES, Math.min(MAX_REAUTH_INTERVAL_MINUTES, Math.round(configured)));
+  }
+
+  scheduleAccountRefresh() {
+    if (this.reauthTimer) {
+      clearInterval(this.reauthTimer);
+      this.reauthTimer = null;
+    }
+    if (this.shuttingDown || !this.config.username || !this.config.password) return;
+
+    const minutes = this.accountRefreshMinutes();
+    if (minutes === 0) {
+      this.log.info('Automatic Eufy account renewal is disabled by reauthInterval=0.');
+      return;
+    }
+
+    this.log.info(`Eufy account session will renew automatically every ${minutes} minutes.`);
+    this.reauthTimer = setInterval(
+      () => void this.requestAccountRefresh('scheduled credential renewal', { force: true }),
+      minutes * 60 * 1000,
+    );
+    this.reauthTimer.unref?.();
+  }
+
+  async requestAccountRefresh(reason, { force = false } = {}) {
+    if (this.shuttingDown || !this.config.username || !this.config.password) return false;
+    if (this.discoveryPromise) {
+      await this.discoveryPromise;
+      return this.accountDiscoverySucceeded;
+    }
+
+    const now = Date.now();
+    if (!force && now - this.lastReauthAttempt < REAUTH_FAILURE_COOLDOWN_MS) {
+      this.log.debug?.(`Eufy reauthentication suppressed by cooldown (${reason}).`);
+      return false;
+    }
+    this.lastReauthAttempt = now;
+    this.log.warn(`Eufy credentials need renewal (${reason}); reauthenticating automatically.`);
+    await this.discoverDevices(reason);
+    return this.accountDiscoverySucceeded;
+  }
+
+  installAccountFailureHooks(account) {
+    const targets = [
+      { value: account, methods: ['getCloudDevice', 'sendCloudCommand', 'getMqttDevice'] },
+      { value: account?.tuyaApi, methods: ['getDevice', 'getDeviceList', 'sendCommand'] },
+      { value: account?.eufyApi, methods: ['getCloudDeviceList', 'getDeviceList', 'getMqttCredentials'] },
+    ];
+
+    for (const { value, methods } of targets) {
+      if (
+        !value ||
+        (typeof value !== 'object' && typeof value !== 'function') ||
+        this.reauthHookTargets.has(value)
+      ) continue;
+      this.reauthHookTargets.add(value);
+
+      for (const method of methods) {
+        const original = value[method];
+        if (typeof original !== 'function') continue;
+        value[method] = async (...args) => {
+          try {
+            return await original.apply(value, args);
+          } catch (error) {
+            if (isAuthenticationFailure(error)) {
+              const detail = error instanceof Error ? error.message : String(error);
+              void this.requestAccountRefresh(`${method}: ${detail}`);
+            }
+            throw error;
+          }
+        };
+      }
     }
   }
 

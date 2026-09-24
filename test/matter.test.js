@@ -8,7 +8,7 @@ const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url
 const schema = JSON.parse(await readFile(new URL('../config.schema.json', import.meta.url), 'utf8'));
 
 test('package declares native Matter transport support', () => {
-  assert.equal(pkg.version, '0.4.0');
+  assert.equal(pkg.version, '0.4.1');
   assert.equal(pkg.keywords.includes('supports-hap'), true);
   assert.equal(pkg.keywords.includes('supports-matter'), true);
   assert.equal(pkg.author?.name, 'gstrosnider');
@@ -35,6 +35,10 @@ test('configuration supports manual per-device map and room fallback', () => {
   assert.equal(device.mapId.type, 'integer');
   assert.equal(device.rooms.type, 'array');
   assert.deepEqual(device.rooms.items.required, ['id', 'name']);
+});
+
+test('configuration enables proactive account renewal by default', () => {
+  assert.equal(schema.schema.properties.reauthInterval.default, 720);
 });
 
 test('Matter controls include start pause resume and return home', () => {

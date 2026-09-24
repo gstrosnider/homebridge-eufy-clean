@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1
+
+- Added automatic Eufy/Tuya account reauthentication without requiring a Homebridge configuration save or child-bridge restart.
+- Added proactive credential renewal every 12 hours by default, configurable with `reauthInterval`.
+- Added immediate renewal when the SDK reports an expired/invalid token, SID, session, or authentication response.
+- Serialized discovery/reauthentication and added a five-minute failure cooldown to prevent parallel logins and retry storms.
+- Rebinds existing HAP or Matter controllers after a successful renewal while preserving accessory identity and configuration.
+
 ## 0.4.0
 
 - Added the Matter Service Area cluster for named, selectable room cleaning.

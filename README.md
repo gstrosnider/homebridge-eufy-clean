@@ -1,6 +1,6 @@
 # Homebridge Eufy Clean
 
-Version 0.4.0 adds selectable Matter service areas with automatic decoded room discovery and a manual room-mapping fallback.
+Version 0.4.1 adds automatic Eufy/Tuya session renewal so expired credentials recover without saving the Homebridge configuration or restarting the child bridge. It retains the selectable Matter service areas introduced in 0.4.0.
 
 Project repository: **https://github.com/gstrosnider/homebridge-eufy-clean**
 
@@ -59,9 +59,16 @@ If Matter is disabled, unavailable, or registration fails, the plugin falls back
   "password": "your-eufy-password",
   "enableMatter": true,
   "pollInterval": 30,
+  "reauthInterval": 720,
   "debug": false
 }
 ```
+
+### Automatic credential renewal
+
+Account sessions are renewed automatically every 12 hours by default. An invalid token, session, or SID response also requests an immediate renewal. Renewals are serialized and failure-triggered attempts have a five-minute cooldown, preventing parallel logins or login storms during an internet outage.
+
+`reauthInterval` is measured in minutes. Set it to `0` only if you explicitly want to disable proactive renewal; automatic recovery from recognized authentication failures remains enabled.
 
 Manual per-device room fallback:
 

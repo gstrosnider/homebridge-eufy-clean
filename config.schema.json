@@ -34,6 +34,14 @@
         "maximum": 300,
         "description": "Refresh interval for HomeKit or Matter vacuum state and battery information."
       },
+      "reauthInterval": {
+        "title": "Account session renewal interval (minutes)",
+        "type": "integer",
+        "default": 720,
+        "minimum": 0,
+        "maximum": 10080,
+        "description": "Proactively obtains fresh Eufy/Tuya credentials without restarting Homebridge. Defaults to every 12 hours. Set to 0 to disable; nonzero values below 60 are raised to 60 minutes. Authentication failures also trigger an immediate guarded renewal."
+      },
       "debug": {
         "title": "Debug logging",
         "type": "boolean",
